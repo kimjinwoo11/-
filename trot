@@ -27,10 +27,10 @@ class TrotGaitController(GaitController): #gaitcontroller에서 상속을 받음
                                          #0.07
         super().__init__(stance_time, swing_time, time_step, contact_phases, default_stance) # gaitcontroller에서 변수들을 상속받아옴
 
-        self.max_x_vel = leg.gait.max_x_vel #0.024
+        self.max_x_vel = leg.gait.max_x_vel #0.024  legparam 에서 가져옴
         self.max_y_vel = leg.gait.max_y_vel #0.01
         self.max_yaw_rate = leg.gait.max_yaw_rate #0.06
-        #다리의 현재 상태(stance,swing)에 따라 다른 클래스 사용
+        #다리의 현재 상태(stance,swing)에 따라 다른 클래스 사용 두 클래스 전부 이 파일 마지막 부분에서 만듦
         self.swingController = TrotSwingController(self.stance_ticks, self.swing_ticks, self.time_step,
                                                    self.phase_length, z_leg_lift, self.default_stance)
 
@@ -38,7 +38,7 @@ class TrotGaitController(GaitController): #gaitcontroller에서 상속을 받음
                                                      self.time_step, z_error_constant) #이 파일에서 새로 만든 클래스들을 실행
 
         # TODO : 게인값 조율
-        self.pid_controller = PID_controller(0., 0., 0.)
+        self.pid_controller = PID_controller(0., 0., 0.) #pid controller라는 클래스의 생성자 생성
 
     def updateStateCommand(self, msg, state, command):
         command.cmd_vel[0] = msg.linear.x /1.5 * self.max_x_vel #x축 속도
@@ -86,16 +86,16 @@ class TrotGaitController(GaitController): #gaitcontroller에서 상속을 받음
             
             # imu compensation, 위에서 구한 발의 위치에 보정값을 추가하여 보정된 발의 위치 구함
             if self.use_imu:
-                compensation = self.pid_controller.run(state.imu_roll, state.imu_pitch)
-                roll_compensation = -compensation[0]
+                compensation = self.pid_controller.run(state.imu_roll, state.imu_pitch)#pidcontroller class에서 run 함수 실행, 보정값은 2차원형태
+                roll_compensation = -compensation[0] 
                 pitch_compensation = -compensation[1]
 
-                rot = rotxyz(roll_compensation, pitch_compensation, 0)
+                rot = rotxyz(roll_compensation, pitch_compensation, 0) 
                 new_foot_locations = np.matmul(rot, new_foot_locations)
             state.ticks +=1
             return new_foot_locations
         else:
-            temp = self.default_stance
+            temp = self.default_stance #기본값
             temp[2] = [command.robot_height]*4
             return temp
    #step을 실행하는 함수 run
@@ -109,7 +109,7 @@ class TrotGaitController(GaitController): #gaitcontroller에서 상속을 받음
         
 class TrotSwingController(object): #swing하는 발의 위치 결정,발의 x,y축 위치 뿐만 아니라 남은 swing 시간(proportion)을 이용해 z축 상의 높이도 정해주는 듯
     def __init__(self, stance_ticks, swing_ticks, time_step, phase_length, z_leg_lift, default_stance):
-        self.stance_ticks = stance_ticks
+        self.stance_ticks = stance_ticks #3개의 변수들은 gaitcontroller에서 설정
         self.swing_ticks = swing_ticks
         self.time_step = time_step
         self.phase_length = phase_length #gaitcontroller에서 정해줌
@@ -118,7 +118,7 @@ class TrotSwingController(object): #swing하는 발의 위치 결정,발의 x,y�
 
     def raibert_touchdwon_location(self, leg_index, command): #발이 최종적으로 도착을 하는 x,y축 상의 위치 결정, 이때 z축상의 회전값도 반영함, 보정은 x
         delta_pos_2d = command.cmd_vel * self.phase_length * self.time_step  #phaselength*time_step=time,2차원 여기서 왜 swing tick이 아니라 phase_length를 곱하는지 의문
-        delta_pos = np.array([delta_pos_2d[0], delta_pos_2d[1], 0])
+        delta_pos = np.array([delta_pos_2d[0], delta_pos_2d[1], 0]) #2차원의값을 3차원의 겂으로 변경,z축상의 높이를 더해주기 위함
 
         theta = self.stance_ticks * self.time_step * command.cmd_yaw_rate #z축 상에서의 회전 정도
         rotation = rotz(theta)
