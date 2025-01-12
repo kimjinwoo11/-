@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+
+import rclpy
+from rclpy.clock import Clock, ClockType
+import numpy as np
+
+import rclpy.time
+
+class PID_controller(object): #pid controller라는 클래스 생성
+    def __init__(self, kp, ki, kd):
+        self.kp = kp #여기서 kp,ki,kd는 pid 제어 공식에서 알수있다시피 에러값에 곱하는 상수값이며 우리가 지정해줘야 함 
+        self.ki = ki #에러값을 비례,적분,미분을 하여 최종적인 보정값 구함
+        self.kd = kd
+
+        self.desired_roll_pitch = np.array([0.0, 0.0]) #roll은 x축, pitchy축 회전값
+        self.desired_rpy = np.array([0.0, 0.0, 0.0])#z축 회전 yaw추가
+
+        # TODO : Tune max_I
+        self.max_I = 0.2 #pid제어의 적분부분의 최대,최솟값
+        self.last_error = np.array([0.0,0.0]) #lasr error 초기화
+
+        self.clock = Clock(clock_type=ClockType.ROS_TIME) #현재 시간을 나타냄
+        
+
+    def reset(self):
+        self.last_time = self.clock.now()
+        self.I_term = np.array([0.0,0.0]) #변수들 초기화
+        self.D_term = np.array([0.0,0.0])
+        self.last_error = np.array([0.0,0.0])
+    
+    def run(self, roll, pitch): # pid제어 값을 구하는 코드 이때는 2차원상의 보정값 구함
+        error = self.desired_roll_pitch - np.array([roll, pitch])#본체가 평형상태에서 벗어난 정도를 계산
+
+        t_now = self.clock.now()
+        step, step_millis = (t_now - self.last_time).seconds_nanoseconds() #제어를 원활하게하기 위해 시간을 밀리단위로 표현해야함
+
+        step = step+step_millis
+
+        self.I_term = self.I_term + error*step #pid제어의 적분 부분
+        
+        for i in range(2): #  적분부분이 특정값을 넘지 않도록 설정, 결과값은 2차원
+            if(self.I_term[i] < -self.max_I):
+                self.I_term[i] = -self.max_I
+            elif(self.I_term[i] > self.max_I):
+                self.I_term[i] = self.max_I
+        
+        self.D_term = (error - self.last_error) / step #step이 충분히 적기에 미분 역할 수행가능, 미분 부분 구함
+
+        self.last_time = t_now
+        self.last_error = error
+           #언급해주신대로 이 부분은 수정 필요. 3파트 전부 비례값만을 구하고 있음
+        P_ret = self.kp * error
+        I_ret = self.ki * error
+        D_ret = self.kd * error
+
+        return P_ret+I_ret+D_ret #최종적인 pid제어 값 산출
+    
+    # def run_rpy(self, roll, pitch, yaw) 3차원상에서의 보정값
+
+    def desired_RP_angles(des_roll, des_pitch):  #평형상태의 롤 피치값
+        self.desired_roll_pitch = np.array([des_roll, des_pitch])
